@@ -154,7 +154,7 @@ pub async fn check_name_expiry(
         out.push(CheckExpiryResponse {
             name: normalised_names[i].name.clone(),
             available,
-            expiry_date: if available { Some(expiries[i]) } else { None },
+            expiry_date: Some(expiries[i]),
         })
     }
 

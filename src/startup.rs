@@ -1,4 +1,5 @@
 use crate::config::DBConfig;
+use crate::routes::portfolio::check_portfolio;
 use crate::routes::{
     check::check_names, expiry::check_expiry, health_check::hello, register::register, watch::watch,
 };
@@ -20,6 +21,7 @@ pub fn run(listener: TcpListener, app_state: Arc<AppState>) -> Result<Server, st
                     .route("/", web::get().to(hello))
                     .route("/check", web::get().to(check_names))
                     .route("/expiry", web::get().to(check_expiry))
+                    .route("/portfolio", web::get().to(check_portfolio))
                     .route("/register", web::post().to(register))
                     .route("/watch", web::post().to(watch)),
             )

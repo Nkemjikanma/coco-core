@@ -46,6 +46,12 @@ pub struct CheckExpiryResponse {
     pub available: bool,
     pub expiry_date: Option<U256>, // date like
 }
+
+// ------ Portfolio -------
+#[derive(Clone, Copy, Deserialize)]
+pub struct AddressQuery {
+    pub address: String,
+}
 // -------------- Register -----------------
 #[derive(Deserialize)]
 pub struct RegisterBody {
