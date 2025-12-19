@@ -1,13 +1,14 @@
 //! tests/health_check.rs
 use alloy::providers::{Provider, ProviderBuilder};
-use coco::AppState;
+use coco::types::api::AppState;
 use serde::Serialize;
 use serde_json::json;
+use sqlx::{Connection, PgConnection};
 use std::net::TcpListener;
 
 #[tokio::test]
 pub async fn home_works() {
-    let address = spawn_app().await;
+    let (_, address) = spawn_app().await;
 
     let client = reqwest::Client::new();
 
@@ -28,7 +29,7 @@ struct RegisterBody {
 
 #[tokio::test]
 async fn test_register_endpoint_returns_200() {
-    let address = spawn_app().await;
+    let (_, address) = spawn_app().await;
 
     let client = reqwest::Client::new();
 
@@ -51,7 +52,7 @@ async fn test_register_endpoint_returns_200() {
 // Parameterised test
 #[tokio::test]
 async fn test_register_endpoint_returns_400() {
-    let address = spawn_app().await;
+    let (_, address) = spawn_app().await;
 
     let client = reqwest::Client::new();
 
@@ -75,14 +76,42 @@ async fn test_register_endpoint_returns_400() {
     }
 }
 
-pub async fn spawn_app() -> String {
+#[tokio::test]
+async fn test_watch() {
+    let (mut connection, address) = spawn_app().await;
+
+    let client = reqwest::Client::new();
+
+    let response = client
+        .post(&format!("{}/api/watch", address))
+        .header("Content-Type", "application/json")
+        .query("ens")
+        .send()
+        .await
+        .expect("Failed to execute request");
+
+    assert_eq!(200, response.status().as_u16());
+
+    let save = sqlx::query!("SELECT name, status::text FROM watch_list",)
+        .fetch_one(&mut connection)
+        .await
+        .expect("Failed to fetch saved name in watch list");
+}
+
+pub async fn spawn_app() -> (PgConnection, String) {
     unsafe {
         std::env::set_var("ETH_RPC", "http://127.0.0.1:8545");
         std::env::set_var("BASE_RPC", "http://127.0.0.1:8545");
+        std::env::set_var("APP_PORT", "8000");
         std::env::set_var("SUBGRAPH_URL", "http://127.0.0.1:8000/subgraphs/name/test");
     }
 
     let config = coco::config::Config::load_env().expect("Missing required env vars for Config");
+
+    let connection_string = config.database.connection_string();
+    let connection = PgConnection::connect(&connection_string)
+        .await
+        .expect("Failed to connect to Postgres");
 
     let provider = ProviderBuilder::new()
         .connect(&config.eth_rpc)
@@ -98,9 +127,10 @@ pub async fn spawn_app() -> String {
 
     let port = listener.local_addr().unwrap().port();
 
-    let server = coco::run(listener, app_state).expect("Failed to bind server");
+    let server = coco::startup::run(listener, app_state).expect("Failed to bind server");
 
     let _ = tokio::spawn(server);
 
-    format!("http://127.0.0.1:{}", port)
+    let address = format!("http://127.0.0.1:{}", port);
+    (connection, address)
 }
